@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>头程费用通用计算器</title>
+    <style>
+        :root {
+            --bg: #f0f2f5;
+            --card-bg: #fff;
+            --primary: #4f46e5;
+            --primary-light: #e0e7ff;
+            --text: #1e293b;
+            --border: #e2e8f0;
+            --danger: #ef4444;
+            --success: #059669;
+            --shadow: 0 4px 12px rgba(0,0,0,0.05);
+            --rate-bg: #fef3d6;
+            --product-bg: #e6f2ff;
+            --cost-bg: #e8f5ee;
+            --other-bg: #f0eaf6;
+            --crossdock-bg: #fde8e8;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--bg); font-family: 'Inter', system-ui, sans-serif; color: var(--text); padding: 24px; }
+        .container { max-width: 1600px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+        .card { border-radius: 20px; padding: 24px 28px; box-shadow: var(--shadow); border: 1px solid var(--border); }
+        .rate-card { background: var(--rate-bg); }
+        .product-card { background: var(--product-bg); }
+        .cost-card { background: var(--cost-bg); }
+        .other-card { background: var(--other-bg); }
+        .crossdock-card { background: var(--crossdock-bg); }
+
+        h2 { font-size: 20px; font-weight: 600; margin-bottom: 16px; color: #0f172a; display: flex; align-items: center; gap: 8px; }
+        h3 { font-size: 16px; font-weight: 600; margin: 16px 0 8px; color: #334155; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+        .flex-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+        label { font-size: 13px; font-weight: 500; color: #475569; display: block; margin-bottom: 4px; }
+        input, select { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; background: white; }
+        input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.15); outline: none; }
+        button { padding: 10px 18px; border-radius: 10px; font-weight: 500; font-size: 14px; cursor: pointer; border: 1px solid transparent; background: white; display: inline-flex; align-items: center; gap: 6px; }
+        button.primary { background: var(--primary); color: white; border-color: var(--primary); }
+        button.danger { color: var(--danger); border-color: #fecaca; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; background: white; }
+        th { background: #f8fafc; font-weight: 600; color: #334155; padding: 12px 10px; text-align: center; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
+        td { padding: 12px 10px; text-align: center; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        .result-highlight { background: #f0f4ff; font-weight: 700; color: #4f46e5; }
+        .total-row { background: #e0e7ff; font-weight: 700; }
+        .badge { background: var(--primary-light); color: var(--primary); padding: 3px 10px; border-radius: 20px; font-size: 12px; }
+        .readonly-name { background: #f8fafc; font-weight: 500; padding: 6px 0; display: block; }
+        .table-scroll { overflow-x: auto; margin-bottom: 12px; border-radius: 12px; border: 1px solid var(--border); }
+        .sticky-col1 {
+            position: sticky; left: 0; background: #fafafa; z-index: 2;
+            min-width: 160px; border-right: 1px solid #e2e8f0;
+        }
+        .sticky-col2 {
+            position: sticky; left: 160px; background: #fafafa; z-index: 2;
+            min-width: 200px; border-right: 1px solid #e2e8f0;
+        }
+        th.sticky-col1, th.sticky-col2 { background: #f1f5f9; z-index: 3; }
+        .product-table td, .product-table th { white-space: nowrap; }
+        .product-table input, .product-table select {
+            width: 100%; min-width: 120px; padding: 8px 10px; font-size: 13px;
+        }
+        .hint { font-size: 12px; color: #64748b; margin-top: 6px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <h2 style="margin:0;">头程费用计算器</h2>
+        <span class="badge">多币种 </span>
+    </div>
+
+    <!-- 1. 汇率设置（浅黄） -->
+    <div class="card rate-card">
+        <h2>汇率设置 <span class="badge">基准：人民币 CNY</span></h2>
+        <div class="flex-row">
+            <select id="currencySelect" style="width:auto;">
+                <option value="USD">美元 USD</option>
+                <option value="RUB">卢布 RUB</option>
+                <option value="KZT">坚戈 KZT</option>
+                <option value="BYN">白俄罗斯卢布 BYN</option>
+                <option value="EUR">欧元 EUR</option>
+                <option value="GBP">英镑 GBP</option>
+            </select>
+            <input type="number" id="newRateValue" placeholder="汇率 (对CNY)" step="0.0001" min="0" style="width:150px;">
+            <button onclick="addSelectedRate()" class="primary">添加汇率</button>
+            <button onclick="addCustomRate()">自定义货币</button>
+        </div>
+        <div id="ratesList" style="margin-top:14px;"></div>
+    </div>
+
+    <!-- 2. 产品明细（浅蓝） -->
+    <div class="card product-card">
+        <h2>产品明细 <span class="badge">每箱与总量双向计算（保留3位小数）</span></h2>
+        <div class="table-scroll">
+            <table class="product-table">
+                <thead>
+                <tr>
+                    <th class="sticky-col1">运单号</th>
+                    <th class="sticky-col2">商品名称</th>
+                    <th>总数量</th><th>每箱个数</th>
+                    <th>每箱重量(kg)</th><th>总重量(kg)</th>
+                    <th>每箱体积(m³)</th><th>总体积(m³)</th>
+                    <th>运单费用</th><th>费用货币</th>
+                    <th>商品售价</th><th>售价货币</th><th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="productBody"></tbody>
+            </table>
+        </div>
+        <button onclick="addProductRow()" style="margin-top:12px;">添加产品</button>
+        <div class="hint">* 填写每箱重量或总重量之一，另一个自动计算并保留3位小数；体积同理。所有数字均不能小于0。</div>
+    </div>
+
+    <!-- 3. 公共费用设置（浅绿） -->
+    <div class="card cost-card">
+        <h2>公共费用设置 <span class="badge">初始值均为 0</span></h2>
+        <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
+            <div><label>总装卸费</label><input type="number" id="totalLoading" value="0" step="0.01" min="0"><select id="loadingCurrency" class="currency-select"></select></div>
+            <div><label>总贴标费</label><input type="number" id="totalLabel" value="0" step="0.01" min="0"><select id="labelCurrency" class="currency-select"></select></div>
+            <div><label>总送仓费</label><input type="number" id="totalDelivery" value="0" step="0.01" min="0"><select id="deliveryCurrency" class="currency-select"></select></div>
+            <div><label>总等待费</label><input type="number" id="totalWaiting" value="0" step="0.01" min="0"><select id="waitingCurrency" class="currency-select"></select></div>
+        </div>
+        <div class="flex-row" style="margin-top:14px; gap:24px;">
+            <label>运费分摊：</label><select id="freightSplit"><option value="weight" selected>按重量</option><option value="volume">按体积</option></select>
+            <label>装卸费分摊：</label><select id="loadingSplit"><option value="weight" selected>按重量</option><option value="box">按箱数</option></select>
+        </div>
+    </div>
+
+    <!-- 4. 其它费用（浅紫） -->
+    <div class="card other-card">
+        <h2>其它费用 <span class="badge">自动同步产品</span></h2>
+        <table><thead><tr><th>商品名称</th><th>金额</th><th>货币</th></tr></thead><tbody id="otherFeeBody"></tbody></table>
+    </div>
+
+    <!-- 5. 越库费用（浅红） -->
+    <div class="card crossdock-card">
+        <h2>越库费用</h2>
+        <h3>越库组设置</h3>
+        <div id="crossdockGroupsList"></div>
+        <button onclick="addCrossdockGroup()">添加越库组</button>
+        <h3 style="margin-top:20px;">产品越库明细 <span class="badge">自动同步产品</span></h3>
+        <div class="table-scroll">
+            <table>
+                <thead>
+                <tr>
+                    <th>商品名称</th><th>申请个数</th><th>申请每箱体积(L)</th><th>越库组编号</th>
+                    <th>越库其它费用金额</th><th>货币</th>
+                </tr>
+                </thead>
+                <tbody id="crossProductBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="flex-row" style="justify-content: center; gap: 16px;">
+        <button class="primary" onclick="calculate()" style="font-size:15px; padding:12px 28px;">计算头程</button>
+        <button onclick="loadExample()" style="font-size:15px; padding:12px 28px;">展示示例</button>
+        <button onclick="clearAll()" class="danger" style="font-size:15px; padding:12px 28px;">清空示例</button>
+    </div>
+    <div id="resultArea"></div>
+</div>
+
+<script>
+    let exchangeRates = { CNY: 1.0 };
+    let otherFeesData = {};
+    let crossProductData = {};
+
+    const currencyNames = {
+        'USD': '美元', 'RUB': '卢布', 'KZT': '坚戈',
+        'BYN': '白俄罗斯卢布', 'EUR': '欧元', 'GBP': '英镑', 'CNY': '人民币'
+    };
+
+    function getCurrencyLabel(code) {
+        return currencyNames[code] ? `${currencyNames[code]} ${code}` : code;
+    }
+
+    function refreshRatesList() {
+        const container = document.getElementById('ratesList');
+        const currencies = Object.keys(exchangeRates).filter(c => c !== 'CNY');
+        if (currencies.length === 0) {
+            container.innerHTML = '<div style="font-size:12px; color:#64748b;">暂无汇率，请添加。</div>';
+            return;
+        }
+        container.innerHTML = currencies.map(c => {
+            return `<div style="display:flex; align-items:center; gap:10px; padding:6px 0;">
+                <span style="min-width:120px; font-weight:500;">${getCurrencyLabel(c)}</span>
+                <input type="number" value="${exchangeRates[c]}" step="0.0001" min="0" style="width:100px;" data-currency="${c}" onchange="updateRateValue('${c}', this.value)">
+                <button class="danger" onclick="removeRate('${c}')">删除</button>
+            </div>`;
+        }).join('');
+        refreshCurrencyDropdowns();
+    }
+
+    function getCurrencyOptions(selected = '') {
+        return Object.keys(exchangeRates).sort().map(c => `<option value="${c}" ${c===selected?'selected':''}>${getCurrencyLabel(c)}</option>`).join('');
+    }
+
+    function refreshCurrencyDropdowns() {
+        const opts = getCurrencyOptions();
+        document.querySelectorAll('select.currency-select, .price-currency, .freight-currency, .other-currency, .cross-group-currency, .cross-other-currency')
+            .forEach(sel => { const v = sel.value; sel.innerHTML = opts; if (v && exchangeRates[v]) sel.value = v; });
+    }
+
+    window.addSelectedRate = function() {
+        const code = document.getElementById('currencySelect').value;
+        const rate = parseFloat(document.getElementById('newRateValue').value);
+        if (!rate || isNaN(rate) || rate <= 0) { alert('请输入有效的正数汇率'); return; }
+        exchangeRates[code] = rate;
+        document.getElementById('newRateValue').value = '';
+        refreshRatesList();
+    };
+    window.addCustomRate = function() {
+        const code = prompt('请输入货币代码（如 CAD）：')?.trim().toUpperCase();
+        if (!code) return;
+        if (code === 'CNY') { alert('CNY 为基准货币，不可添加'); return; }
+        const rate = parseFloat(prompt(`请输入 ${code} 对 CNY 的汇率：`));
+        if (!rate || isNaN(rate) || rate <= 0) { alert('汇率无效'); return; }
+        exchangeRates[code] = rate;
+        refreshRatesList();
+    };
+    window.updateRateValue = function(code, value) {
+        const num = parseFloat(value);
+        if (!isNaN(num) && num >= 0) exchangeRates[code] = num;
+        refreshRatesList();
+    };
+    window.removeRate = function(code) { delete exchangeRates[code]; refreshRatesList(); };
+    function toCNY(amount, currency) { if (!amount || isNaN(amount)) return 0; return amount * (exchangeRates[currency?.toUpperCase()] || 0); }
+
+    function getProductNames() {
+        const names = new Set();
+        document.querySelectorAll('#productBody tr').forEach(row => {
+            const inp = row.querySelector('input[placeholder="产品名称"]');
+            if (inp && inp.value.trim()) names.add(inp.value.trim());
+        });
+        return [...names];
+    }
+
+    function syncFeeTables() {
+        const productNames = getProductNames();
+        for (const key of Object.keys(otherFeesData)) if (!productNames.includes(key)) delete otherFeesData[key];
+        for (const key of Object.keys(crossProductData)) if (!productNames.includes(key)) delete crossProductData[key];
+        productNames.forEach(name => {
+            if (!otherFeesData[name]) otherFeesData[name] = { amount: '', currency: 'CNY' };
+            if (!crossProductData[name]) crossProductData[name] = { applyQty: '', applyVolPerBox: '', crossGroup: '', crossOtherAmount: '', crossOtherCurrency: 'CNY' };
+        });
+
+        document.getElementById('otherFeeBody').innerHTML = productNames.map(name => {
+            const fee = otherFeesData[name];
+            return `<tr><td><span class="readonly-name">${name}</span></td><td><input type="number" value="${fee.amount}" step="0.01" min="0" data-product="${name}" data-field="otherAmount"></td><td><select class="other-currency" data-product="${name}" data-field="otherCurrency">${getCurrencyOptions(fee.currency)}</select></td></tr>`;
+        }).join('');
+
+        document.getElementById('crossProductBody').innerHTML = productNames.map(name => {
+            const cp = crossProductData[name] || {};
+            const groupPart = (cp.crossGroup || '').replace(/^组/, '');
+            return `<tr><td><span class="readonly-name">${name}</span></td><td><input type="number" value="${cp.applyQty||''}" step="any" min="0" data-product="${name}" data-field="applyQty"></td><td><input type="number" value="${cp.applyVolPerBox||''}" step="any" min="0" data-product="${name}" data-field="applyVolPerBox"></td><td><span>组</span><input value="${groupPart}" placeholder="A" data-product="${name}" data-field="crossGroup" style="width:70px; text-transform:uppercase;" oninput="this.value=this.value.toUpperCase()"></td><td><input type="number" value="${cp.crossOtherAmount||''}" step="0.01" min="0" data-product="${name}" data-field="crossOtherAmount"></td><td><select class="cross-other-currency" data-product="${name}" data-field="crossOtherCurrency">${getCurrencyOptions(cp.crossOtherCurrency||'CNY')}</select></td></tr>`;
+        }).join('');
+    }
+
+    document.addEventListener('input', e => {
+        const el = e.target;
+        if (el.type === 'number') {
+            let val = el.value;
+            if (val.includes('-')) {
+                val = val.replace(/-/g, '');
+                if (val === '' || isNaN(parseFloat(val))) val = '0';
+                el.value = val;
+            } else {
+                const num = parseFloat(val);
+                if (!isNaN(num) && num < 0) el.value = 0;
+            }
+        }
+
+        if (el.placeholder === '产品名称') syncFeeTables();
+        if (el.dataset.product && el.dataset.field) {
+            const { product, field } = el.dataset;
+            if (field === 'otherAmount' || field === 'otherCurrency') {
+                if (!otherFeesData[product]) otherFeesData[product] = { amount: '', currency: 'CNY' };
+                if (field === 'otherAmount') otherFeesData[product].amount = el.value;
+                else otherFeesData[product].currency = el.value;
+            } else if (['applyQty', 'applyVolPerBox', 'crossGroup', 'crossOtherAmount', 'crossOtherCurrency'].includes(field)) {
+                if (!crossProductData[product]) crossProductData[product] = { applyQty: '', applyVolPerBox: '', crossGroup: '', crossOtherAmount: '', crossOtherCurrency: 'CNY' };
+                if (field === 'crossGroup') crossProductData[product].crossGroup = el.value.trim() ? '组' + el.value.trim() : '';
+                else crossProductData[product][field] = el.value;
+            }
+        }
+    });
+
+    function bindProductCalculations(row) {
+        const cells = row.cells;
+        const qty = cells[2].querySelector('input');
+        const perBox = cells[3].querySelector('input');
+        const boxW = cells[4].querySelector('input');
+        const totalW = cells[5].querySelector('input');
+        const boxV = cells[6].querySelector('input');
+        const totalV = cells[7].querySelector('input');
+
+        function boxes() { return (parseFloat(perBox.value) && parseFloat(qty.value)) ? parseFloat(qty.value)/parseFloat(perBox.value) : 0; }
+        function syncWeight(fromBox) {
+            const b = boxes();
+            if (fromBox) totalW.value = b ? (parseFloat(boxW.value||0)*b).toFixed(3) : '';
+            else boxW.value = b ? (parseFloat(totalW.value||0)/b).toFixed(3) : '';
+        }
+        function syncVolume(fromBox) {
+            const b = boxes();
+            if (fromBox) totalV.value = b ? (parseFloat(boxV.value||0)*b).toFixed(3) : '';
+            else boxV.value = b ? (parseFloat(totalV.value||0)/b).toFixed(3) : '';
+        }
+        boxW.oninput = () => syncWeight(true); totalW.oninput = () => syncWeight(false);
+        boxV.oninput = () => syncVolume(true); totalV.oninput = () => syncVolume(false);
+        [qty, perBox].forEach(el => el.addEventListener('input', () => {
+            if (boxW.value) syncWeight(true); if (totalW.value) syncWeight(false);
+            if (boxV.value) syncVolume(true); if (totalV.value) syncVolume(false);
+        }));
+    }
+
+    window.addProductRow = (data = {}) => {
+        const tbody = document.getElementById('productBody');
+        const row = tbody.insertRow();
+        row.innerHTML = `
+            <td class="sticky-col1"><input value="${data.waybill||''}" placeholder="C01" style="width:140px;"></td>
+            <td class="sticky-col2"><input value="${data.name||''}" placeholder="产品名称" style="width:180px;"></td>
+            <td><input type="number" value="${data.qty||''}" step="any" min="0" style="width:160px;"></td>
+            <td><input type="number" value="${data.perBox||''}" step="any" min="0" style="width:160px;"></td>
+            <td><input type="number" value="${data.boxWeight||''}" step="any" min="0" style="width:180px;"></td>
+            <td><input type="number" value="${data.totalWeight||''}" step="any" min="0" style="width:180px;"></td>
+            <td><input type="number" value="${data.boxVol||''}" step="any" min="0" style="width:180px;"></td>
+            <td><input type="number" value="${data.totalVol||''}" step="any" min="0" style="width:180px;"></td>
+            <td><input type="number" value="${data.freightAmt||''}" step="any" min="0" style="width:180px;"></td>
+            <td><select class="freight-currency" style="width:140px;">${getCurrencyOptions(data.freightCurrency||'USD')}</select></td>
+            <td><input type="number" value="${data.price||''}" step="any" min="0" style="width:180px;"></td>
+            <td><select class="price-currency" style="width:140px;">${getCurrencyOptions(data.priceCurrency||'RUB')}</select></td>
+            <td><button class="danger" onclick="this.closest('tr').remove();syncFeeTables();">删除</button></td>`;
+        bindProductCalculations(row);
+        syncFeeTables();
+    };
+
+    window.addCrossdockGroup = (data = {}) => {
+        const div = document.createElement('div');
+        div.style.display='flex'; div.style.alignItems='center'; div.style.gap='12px'; div.style.padding='8px 0';
+        div.innerHTML = `<span style="font-weight:500;">组</span><input placeholder="A" value="${(data.id||'').replace(/^组/,'')}" style="width:70px; text-transform:uppercase;"><input type="number" placeholder="费用金额" value="${data.amount||''}" step="0.01" min="0" style="width:120px;"><select class="cross-group-currency">${getCurrencyOptions(data.currency||'RUB')}</select><button class="danger" onclick="this.parentElement.remove()">删除</button>`;
+        document.getElementById('crossdockGroupsList').appendChild(div);
+    };
+
+    window.clearAll = () => {
+        exchangeRates = { CNY: 1.0 };
+        otherFeesData = {};
+        crossProductData = {};
+        document.getElementById('productBody').innerHTML = '';
+        document.getElementById('crossdockGroupsList').innerHTML = '';
+        document.getElementById('otherFeeBody').innerHTML = '';
+        document.getElementById('crossProductBody').innerHTML = '';
+        document.getElementById('resultArea').innerHTML = '';
+        document.getElementById('totalLoading').value = 0;
+        document.getElementById('totalLabel').value = 0;
+        document.getElementById('totalDelivery').value = 0;
+        document.getElementById('totalWaiting').value = 0;
+        refreshRatesList();
+        document.getElementById('resultArea').innerHTML = '<div class="card" style="color:#64748b; background:white;">已清空，请添加产品或点击“展示示例”。</div>';
+    };
+
+    window.loadExample = () => {
+        exchangeRates = { CNY: 1.0, USD: 6.84, RUB: 0.08 };
+        refreshRatesList();
+        document.getElementById('productBody').innerHTML = '';
+        document.getElementById('crossdockGroupsList').innerHTML = '';
+        document.getElementById('resultArea').innerHTML = '';
+        otherFeesData = {};
+        crossProductData = {};
+        addProductRow({ waybill:'C03', name:'产品a', qty:2000, perBox:200, boxWeight:19, totalWeight:190, boxVol:0.7, totalVol:7, price:300, priceCurrency:'RUB', freightAmt:400, freightCurrency:'USD' });
+        addProductRow({ waybill:'C04', name:'产品b', qty:400, perBox:50, boxWeight:12, totalWeight:96, boxVol:0.8, totalVol:6.4, price:2000, priceCurrency:'RUB', freightAmt:700, freightCurrency:'USD' });
+        addProductRow({ waybill:'C04', name:'产品c', qty:600, perBox:100, boxWeight:16, totalWeight:96, boxVol:0.5, totalVol:3, price:800, priceCurrency:'RUB', freightAmt:700, freightCurrency:'USD' });
+        addProductRow({ waybill:'C04', name:'产品d', qty:900, perBox:300, boxWeight:20, totalWeight:60, boxVol:1.2, totalVol:3.6, price:100, priceCurrency:'RUB', freightAmt:700, freightCurrency:'USD' });
+        document.getElementById('loadingCurrency').value = 'CNY';
+        document.getElementById('labelCurrency').value = 'CNY';
+        document.getElementById('deliveryCurrency').value = 'CNY';
+        document.getElementById('waitingCurrency').value = 'RUB';
+        document.getElementById('totalLoading').value = 280;
+        document.getElementById('totalLabel').value = 81;
+        document.getElementById('totalDelivery').value = 1200;
+        document.getElementById('totalWaiting').value = 8000;
+        addCrossdockGroup({ id:'A', amount:3000, currency:'RUB' });
+        addCrossdockGroup({ id:'B', amount:400, currency:'RUB' });
+        otherFeesData = { '产品a': { amount: '150', currency: 'CNY' }, '产品c': { amount: '400', currency: 'CNY' } };
+        crossProductData = {
+            '产品a': { applyQty: '1600', applyVolPerBox: '5', crossGroup: '组A', crossOtherAmount: '1200', crossOtherCurrency: 'RUB' },
+            '产品b': { applyQty: '300', applyVolPerBox: '12', crossGroup: '组A', crossOtherAmount: '', crossOtherCurrency: 'CNY' },
+            '产品c': { applyQty: '500', applyVolPerBox: '8', crossGroup: '组A', crossOtherAmount: '', crossOtherCurrency: 'CNY' },
+            '产品d': { applyQty: '300', applyVolPerBox: '9', crossGroup: '组B', crossOtherAmount: '', crossOtherCurrency: 'CNY' }
+        };
+        syncFeeTables();
+        calculate();
+    };
+
+    window.calculate = () => {
+        try {
+            const products = [];
+            document.querySelectorAll('#productBody tr').forEach(row => {
+                const cells = row.cells;
+                if (!cells[0]?.querySelector('input')) return;
+                const waybill = cells[0].querySelector('input').value.trim();
+                const name = cells[1].querySelector('input').value.trim();
+                if (!waybill || !name) return;
+                const getNum = idx => parseFloat(cells[idx].querySelector('input')?.value) || 0;
+                const qty = getNum(2), perBox = getNum(3);
+                const boxWeight = getNum(4), totalWeight = getNum(5);
+                const boxVol = getNum(6), totalVol = getNum(7);
+                const freightAmt = getNum(8), price = getNum(10);
+                const freightCurrency = cells[9].querySelector('select')?.value || 'USD';
+                const priceCurrency = cells[11].querySelector('select')?.value || 'RUB';
+                const totalBoxes = perBox ? qty / perBox : 0;
+                products.push({
+                    waybill, name, qty, perBox, totalBoxes,
+                    totalWeight: totalWeight || (totalBoxes * boxWeight),
+                    totalVolume: totalVol || (totalBoxes * boxVol),
+                    totalValueCNY: toCNY(price * qty, priceCurrency),
+                    freightCNY: toCNY(freightAmt, freightCurrency)
+                });
+            });
+            if (!products.length) { document.getElementById('resultArea').innerHTML = '<div class="card" style="color:#64748b; background:white;">暂无产品数据。</div>'; return; }
+
+            const totalLoading = toCNY(+document.getElementById('totalLoading').value || 0, document.getElementById('loadingCurrency').value);
+            const totalLabel = toCNY(+document.getElementById('totalLabel').value || 0, document.getElementById('labelCurrency').value);
+            const totalDelivery = toCNY(+document.getElementById('totalDelivery').value || 0, document.getElementById('deliveryCurrency').value);
+            const totalWaiting = toCNY(+document.getElementById('totalWaiting').value || 0, document.getElementById('waitingCurrency').value);
+            const freightSplit = document.getElementById('freightSplit').value;
+            const loadingSplit = document.getElementById('loadingSplit').value;
+
+            const otherMap = new Map();
+            Object.entries(otherFeesData).forEach(([name, fee]) => { const amt = parseFloat(fee.amount); if (amt > 0) otherMap.set(name, toCNY(amt, fee.currency)); });
+            const crossGroupCNY = new Map();
+            document.querySelectorAll('#crossdockGroupsList > div').forEach(div => {
+                const inputs = div.querySelectorAll('input'); const sel = div.querySelector('select');
+                if (inputs.length >= 2 && sel && inputs[0].value.trim()) {
+                    crossGroupCNY.set('组' + inputs[0].value.trim().toUpperCase(), toCNY(+inputs[1].value || 0, sel.value));
+                }
+            });
+            const crossProducts = []; const crossOtherCosts = {};
+            Object.entries(crossProductData).forEach(([name, cp]) => {
+                if (cp.applyQty && cp.applyVolPerBox && cp.crossGroup) {
+                    crossProducts.push({ name, applyQty: parseFloat(cp.applyQty)||0, applyVolPerBox: parseFloat(cp.applyVolPerBox)||0, groupId: cp.crossGroup.trim() });
+                }
+                const otherAmt = parseFloat(cp.crossOtherAmount);
+                if (cp.applyQty && !isNaN(otherAmt) && otherAmt > 0) {
+                    crossOtherCosts[name] = { totalCNY: toCNY(otherAmt, cp.crossOtherCurrency), applyQty: parseFloat(cp.applyQty) };
+                }
+            });
+
+            const allWeight = products.reduce((s,p)=>s+p.totalWeight,0), allBoxes = products.reduce((s,p)=>s+p.totalBoxes,0), allValue = products.reduce((s,p)=>s+p.totalValueCNY,0);
+            const waybillMap = new Map(); products.forEach(p => { if(!waybillMap.has(p.waybill)) waybillMap.set(p.waybill,[]); waybillMap.get(p.waybill).push(p); });
+            const res = products.map(p => { const cp = crossProductData[p.name] || {}; return { ...p, applyQty: parseFloat(cp.applyQty)||0, singleFreight:0, singleLoading:0, singleLabel:0, singleDelivery:0, singleWaiting:0, singleOther:0, singleCross:0 }; });
+
+            for(let [wb, prods] of waybillMap) {
+                const freight = prods[0].freightCNY;
+                const basis = freightSplit==='volume'?'totalVolume':'totalWeight';
+                const sum = prods.reduce((s,p)=>s+p[basis],0);
+                prods.forEach(p => {
+                    const r = res.find(r=>r.name===p.name && r.waybill===wb);
+                    if(r){ const ratio = sum?p[basis]/sum:0; r.totalFreightProd=freight*ratio; r.singleFreight = p.qty?r.totalFreightProd/p.qty:0; }
+                });
+            }
+
+            const lb = loadingSplit==='box'?'totalBoxes':'totalWeight', sumLb = loadingSplit==='box'?allBoxes:allWeight;
+            res.forEach(r => { const ratio = sumLb?r[lb]/sumLb:0; r.totalLoadingProd = totalLoading*ratio; r.singleLoading = r.qty?r.totalLoadingProd/r.qty:0; });
+            res.forEach(r => { const ratio = allBoxes?r.totalBoxes/allBoxes:0; r.totalLabelProd = totalLabel*ratio; r.singleLabel = r.qty?r.totalLabelProd/r.qty:0; });
+            res.forEach(r => { const ratio = allValue?r.totalValueCNY/allValue:0; r.totalDeliveryProd = totalDelivery*ratio; r.singleDelivery = r.qty?r.totalDeliveryProd/r.qty:0; r.totalWaitingProd = totalWaiting*ratio; r.singleWaiting = r.qty?r.totalWaitingProd/r.qty:0; });
+            res.forEach(r => { const v = otherMap.get(r.name)||0; r.totalOtherProd = v; r.singleOther = r.qty?v/r.qty:0; });
+
+            const groupVols = new Map();
+            crossProducts.forEach(cp => {
+                const prod = products.find(p=>p.name===cp.name);
+                if(!prod) return;
+                const vol = prod.perBox ? (cp.applyQty/prod.perBox)*cp.applyVolPerBox : 0;
+                if(!groupVols.has(cp.groupId)) groupVols.set(cp.groupId,[]);
+                groupVols.get(cp.groupId).push({name:cp.name, vol, applyQty:cp.applyQty});
+            });
+            for(let [gid, items] of groupVols) {
+                const total = crossGroupCNY.get(gid)||0;
+                const sumVol = items.reduce((s,i)=>s+i.vol,0);
+                items.forEach(it => {
+                    const r = res.find(r=>r.name===it.name);
+                    if(r){ const ratio = sumVol?it.vol/sumVol:0; r.totalCrossProd = total*ratio; r.singleCross = it.applyQty?r.totalCrossProd/it.applyQty:0; }
+                });
+            }
+            Object.entries(crossOtherCosts).forEach(([name, cost]) => {
+                const r = res.find(r=>r.name===name);
+                if(r && cost.applyQty>0) r.singleCross += cost.totalCNY / cost.applyQty;
+            });
+
+            res.forEach(r => { r.singleTotal = r.singleFreight+r.singleLoading+r.singleLabel+r.singleDelivery+r.singleWaiting+r.singleOther+r.singleCross; r.totalHeadCost = r.singleTotal * r.qty; });
+            const grandTotal = res.reduce((s,r)=>s+r.totalHeadCost,0);
+
+            const chk = (calc, orig, label) => {
+                const diff = Math.abs(calc - orig);
+                const ok = diff < 0.01;
+                return `<tr><td>${label}</td><td>${orig.toFixed(2)}</td><td>${calc.toFixed(2)}</td><td style="color:${ok?'green':'red'}">${ok?'✅ 通过' : '❌ 差异'+diff.toFixed(4)}</td></tr>`;
+            };
+            const freightOrig = Array.from(waybillMap.values()).reduce((s,a)=>s+a[0].freightCNY,0);
+            const otherOrig = Array.from(otherMap.values()).reduce((a,b)=>a+b,0);
+            const crossOrig = Array.from(crossGroupCNY.values()).reduce((a,b)=>a+b,0);
+            const crossOtherTotal = Object.values(crossOtherCosts).reduce((s,c)=>s+c.totalCNY,0);
+            const crossTotalCalc = res.reduce((s,r)=>s + r.singleCross * (r.applyQty||0), 0);
+            const sumFreight = res.reduce((s,r)=>s+(r.totalFreightProd||0),0);
+            const sumLoading = res.reduce((s,r)=>s+(r.totalLoadingProd||0),0);
+            const sumLabel = res.reduce((s,r)=>s+(r.totalLabelProd||0),0);
+            const sumDelivery = res.reduce((s,r)=>s+(r.totalDeliveryProd||0),0);
+            const sumWaiting = res.reduce((s,r)=>s+(r.totalWaitingProd||0),0);
+            const sumOther = res.reduce((s,r)=>s+(r.totalOtherProd||0),0);
+            const origTotal = freightOrig+totalLoading+totalLabel+totalDelivery+totalWaiting+otherOrig+crossOrig+crossOtherTotal;
+            const calcTotal = sumFreight+sumLoading+sumLabel+sumDelivery+sumWaiting+sumOther+crossTotalCalc;
+
+            let html = `<div class="card" style="background:white;"><h2>计算结果（人民币 CNY）</h2><div class="table-scroll"><table>
+                <thead><tr><th>运单号</th><th>产品</th><th>数量</th><th>单个运费</th><th>单个装卸费</th><th>单个贴标费</th><th>单个送仓费</th><th>单个等待费</th><th>单个其他费</th><th>单个越库费</th><th>单个头程</th><th>总头程</th></tr></thead><tbody>`;
+            res.forEach(r => { html += `<tr><td>${r.waybill}</td><td>${r.name}</td><td>${r.qty}</td><td>${r.singleFreight.toFixed(4)}</td><td>${r.singleLoading.toFixed(4)}</td><td>${r.singleLabel.toFixed(4)}</td><td>${r.singleDelivery.toFixed(4)}</td><td>${r.singleWaiting.toFixed(4)}</td><td>${r.singleOther.toFixed(4)}</td><td>${r.singleCross.toFixed(4)}</td><td class="result-highlight">${r.singleTotal.toFixed(4)}</td><td class="result-highlight">${r.totalHeadCost.toFixed(2)}</td></tr>`; });
+            html += `<tr class="total-row"><td colspan="9" style="text-align:right;">所有产品头程合计</td><td></td><td><strong>${grandTotal.toFixed(2)}</strong></td></tr></tbody></table></div></div>`;
+            html += `<div class="card" style="background:white;"><h2>验算核对</h2><table><thead><tr><th>费用项</th><th>原始总额(CNY)</th><th>分摊汇总(CNY)</th><th>状态</th></tr></thead><tbody>
+                ${chk(sumFreight, freightOrig, '运费')}${chk(sumLoading, totalLoading, '装卸费')}${chk(sumLabel, totalLabel, '贴标费')}
+                ${chk(sumDelivery, totalDelivery, '送仓费')}${chk(sumWaiting, totalWaiting, '等待费')}${chk(sumOther, otherOrig, '其它费用')}
+                ${chk(crossTotalCalc, crossOrig+crossOtherTotal, '越库费（含其它）')}${chk(calcTotal, origTotal, '费用总计')}
+            </tbody></table></div>`;
+            document.getElementById('resultArea').innerHTML = html;
+        } catch(e) {
+            alert('计算出错：' + e.message);
+        }
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+        refreshRatesList();
+        document.getElementById('resultArea').innerHTML = '<div class="card" style="color:#64748b; background:white;">点击“展示示例”加载样例，或手动添加产品后计算。</div>';
+    });
+</script>
+</body>
+</html>
